@@ -13,9 +13,16 @@ const HTTPS_PORT = 8443; // Using 8443 for testing without sudo
 
 let io: Server;
 
-// Serve static dashboard
-const dashboardPath = path.join(__dirname, '..', '..', 'src', 'dashboard', 'dist');
+// Serve static dashboard - resolve from package root
+const packageRoot = path.resolve(__dirname, '..', '..');
+const dashboardPath = path.join(packageRoot, 'src', 'dashboard', 'dist');
 app.use(express.static(dashboardPath));
+
+// Fallback: serve index.html for SPA routing (Express 5 syntax)
+app.get('/{*path}', (req, res) => {
+  if (req.path.startsWith('/api/')) return;
+  res.sendFile(path.join(dashboardPath, 'index.html'));
+});
 
 app.use(express.json());
 
