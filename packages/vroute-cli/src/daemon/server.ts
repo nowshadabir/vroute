@@ -5,6 +5,7 @@ import { httpsProxyServer } from './https';
 import { Server } from 'socket.io';
 import path from 'path';
 import sudo from 'sudo-prompt';
+import { execSync } from 'child_process';
 
 const app = express();
 const PORT = 9999;
@@ -32,6 +33,30 @@ app.get('/api/status', (req, res) => {
 
 app.get('/api/config', (req, res) => {
   res.json(readConfig());
+});
+
+app.get('/api/ports', (req, res) => {
+  try {
+    const output = execSync('ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null', { encoding: 'utf-8' });
+    const lines = output.split('\n').slice(1); // skip header
+    const ports = lines
+      .filter(line => line.trim())
+      .map(line => {
+        const parts = line.split(/\s+/);
+        const localAddr = parts[3] || '';
+        const portMatch = localAddr.match(/:(\d+)$/);
+        const port = portMatch ? parseInt(portMatch[1]!, 10) : 0;
+        const processInfo = line.match(/users:\(\("([^"]+)",pid=(\d+)/);
+        const processName = processInfo ? processInfo[1]! : '';
+        const pid = processInfo ? parseInt(processInfo[2]!, 10) : 0;
+        return { port, process: processName, pid, address: localAddr };
+      })
+      .filter(p => p.port > 0)
+      .sort((a, b) => a.port - b.port);
+    res.json({ ports });
+  } catch (err: any) {
+    res.json({ ports: [], error: err.message });
+  }
 });
 
 app.post('/api/routes', (req, res) => {

@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { io } from 'socket.io-client';
-import { Activity, Globe, Server, Link as LinkIcon, ExternalLink, Trash2, Plus, Hash } from 'lucide-react';
+import { Activity, Globe, Server, Link as LinkIcon, ExternalLink, Trash2, Plus, Hash, Radio } from 'lucide-react';
 
 import toast, { Toaster } from 'react-hot-toast';
 import { cn } from './lib/utils';
 import './index.css';
+
+interface PortInfo {
+  port: number;
+  process: string;
+  pid: number;
+  address: string;
+}
 
 interface RouteConfig {
   port: number;
@@ -33,6 +40,7 @@ interface RequestLog {
 function App() {
   const [config, setConfig] = useState<Config | null>(null);
   const [logs, setLogs] = useState<RequestLog[]>([]);
+  const [ports, setPorts] = useState<PortInfo[]>([]);
   const [connected, setConnected] = useState(false);
 
   const [newDomain, setNewDomain] = useState('');
@@ -54,7 +62,21 @@ function App() {
       setLogs((prev) => [log, ...prev].slice(0, 100));
     });
 
-    return () => { socket.disconnect(); };
+    // Fetch active ports
+    const fetchPorts = async () => {
+      try {
+        const res = await fetch('/api/ports');
+        const data = await res.json();
+        setPorts(data.ports || []);
+      } catch { /* ignore */ }
+    };
+    fetchPorts();
+    const portInterval = setInterval(fetchPorts, 5000);
+
+    return () => {
+      socket.disconnect();
+      clearInterval(portInterval);
+    };
   }, []);
 
   const getStatusColor = (status: number) => {
@@ -303,6 +325,37 @@ function App() {
                     <p className="text-sm text-gray-500">No routes configured</p>
                     <p className="text-xs text-gray-400 mt-1">Add a route to get started</p>
                   </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Active Ports */}
+          <div className="lg:col-span-3">
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                  <Radio className="w-4 h-4" />
+                  Active Ports
+                  {ports.length > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">
+                      {ports.length}
+                    </span>
+                  )}
+                </h2>
+              </div>
+              <div className="p-4">
+                {ports.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                    {ports.map((p) => (
+                      <div key={p.port} className="px-3 py-2 bg-gray-50 rounded-md border border-gray-100">
+                        <div className="text-sm font-mono font-semibold text-gray-900">{p.port}</div>
+                        <div className="text-[10px] text-gray-500 truncate" title={p.process}>{p.process || 'unknown'}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">No active ports detected</p>
                 )}
               </div>
             </div>
