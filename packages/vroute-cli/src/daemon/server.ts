@@ -8,8 +8,8 @@ import sudo from 'sudo-prompt';
 
 const app = express();
 const PORT = 9999;
-const PROXY_PORT = 8080; // Using 8080 for testing without sudo
-const HTTPS_PORT = 8443; // Using 8443 for testing without sudo
+let PROXY_PORT = 80;
+let HTTPS_PORT = 443;
 
 let io: Server;
 
@@ -100,6 +100,27 @@ export function startDaemon() {
 
   proxyEvents.on('request-log', (log) => {
     io.emit('request-log', log);
+  });
+
+  // Try standard ports (80/443), fall back to alt ports (8080/8443)
+  proxyServer.on('error', (err: any) => {
+    if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+      PROXY_PORT = 8080;
+      console.log(`Port 80 unavailable, falling back to port ${PROXY_PORT}`);
+      proxyServer.listen(PROXY_PORT, '127.0.0.1', () => {
+        console.log(`vroute proxy server listening on 127.0.0.1:${PROXY_PORT}`);
+      });
+    }
+  });
+
+  httpsProxyServer.on('error', (err: any) => {
+    if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+      HTTPS_PORT = 8443;
+      console.log(`Port 443 unavailable, falling back to port ${HTTPS_PORT}`);
+      httpsProxyServer.listen(HTTPS_PORT, '127.0.0.1', () => {
+        console.log(`vroute HTTPS proxy server listening on 127.0.0.1:${HTTPS_PORT}`);
+      });
+    }
   });
 
   proxyServer.listen(PROXY_PORT, '127.0.0.1', () => {

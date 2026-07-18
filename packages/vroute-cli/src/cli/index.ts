@@ -128,7 +128,8 @@ program
     }
     console.log('Active Routes:');
     domains.forEach(d => {
-      console.log(`  ${d} -> 127.0.0.1:${config.routes[d]}`);
+      const route = config.routes[d]!;
+      console.log(`  ${d} -> 127.0.0.1:${route.port}`);
     });
   });
 
