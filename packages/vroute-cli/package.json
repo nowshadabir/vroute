@@ -1,6 +1,6 @@
 {
   "name": "vroute",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Zero-config local DNS & SSL router for seamless local web development",
   "main": "dist/cli/index.js",
   "bin": {
@@ -43,7 +43,8 @@
   "files": [
     "dist",
     "bin",
-    "src/dashboard/dist"
+    "src/dashboard/dist/**/*",
+    "src/dashboard/index.html"
   ],
   "dependencies": {
     "commander": "^15.0.0",

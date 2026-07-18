@@ -1,0 +1,2 @@
+# Keep dist for npm packaging
+node_modules
