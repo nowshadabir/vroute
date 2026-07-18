@@ -56,9 +56,11 @@ export function setupCA() {
 
 export function generateDomainCert(domain: string): { key: string, cert: string } {
   ensureCertsDir();
-  
-  const domainKeyPath = path.join(CERTS_DIR, `${domain}.key`);
-  const domainCertPath = path.join(CERTS_DIR, `${domain}.pem`);
+
+  // Use safe filename for wildcard certs (*. → star.)
+  const safeName = domain.replace(/^\*\./, 'star.');
+  const domainKeyPath = path.join(CERTS_DIR, `${safeName}.key`);
+  const domainCertPath = path.join(CERTS_DIR, `${safeName}.pem`);
 
   if (fs.existsSync(domainKeyPath) && fs.existsSync(domainCertPath)) {
     return {
@@ -76,9 +78,8 @@ export function generateDomainCert(domain: string): { key: string, cert: string 
   // Generate Domain Cert
   const keys = forge.pki.rsa.generateKeyPair(2048);
   const cert = forge.pki.createCertificate();
-  
+
   cert.publicKey = keys.publicKey;
-  // Modern browsers require a long, random serial number (usually 64+ bits).
   cert.serialNumber = forge.util.bytesToHex(forge.random.getBytesSync(16));
   cert.validity.notBefore = new Date();
   cert.validity.notAfter = new Date();
@@ -87,11 +88,14 @@ export function generateDomainCert(domain: string): { key: string, cert: string 
   cert.setSubject([{ name: 'commonName', value: domain }]);
   cert.setIssuer(caCert.subject.attributes);
 
+  // Build SAN list — wildcard domains get wildcard SAN
+  const altNames = [{ type: 2, value: domain }];
+
   cert.setExtensions([
     { name: 'basicConstraints', cA: false },
     { name: 'keyUsage', digitalSignature: true, keyEncipherment: true },
     { name: 'extKeyUsage', serverAuth: true, clientAuth: true },
-    { name: 'subjectAltName', altNames: [{ type: 2, value: domain }] }
+    { name: 'subjectAltName', altNames }
   ]);
 
   cert.sign(caKey, forge.md.sha256.create());

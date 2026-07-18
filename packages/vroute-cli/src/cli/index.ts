@@ -76,25 +76,33 @@ program
 
 program
   .command('add <domain> <port>')
-  .description('Add a new local route (e.g., app.test 3000)')
+  .description('Add a new local route (e.g., app.test 3000 or *.app.localhost 3000)')
   .action((domain, port) => {
+    const isWildcard = domain.startsWith('*.');
+
     updateConfig(config => {
       config.routes[domain] = {
         port: parseInt(port, 10),
         ssl: true,
-        cors: true
+        cors: true,
+        wildcard: isWildcard,
       };
     });
-    console.log(`✅ Route added to config: ${domain} -> 127.0.0.1:${port}`);
-    
-    // Modify OS hosts file using sudo-prompt
+
+    if (isWildcard) {
+      console.log(`Wildcard route added: ${domain} -> 127.0.0.1:${port}`);
+      console.log('Subdomains will be resolved automatically (no hosts file entry needed).');
+      return;
+    }
+
+    console.log(`Route added: ${domain} -> 127.0.0.1:${port}`);
     console.log('Requesting permission to modify OS hosts file...');
     const dnsScript = path.join(__dirname, '..', '..', 'bin', 'vroute-dns.js');
     sudo.exec(`node "${dnsScript}" add ${domain}`, { name: 'vroute' }, (error) => {
       if (error) {
         console.error('Failed to update hosts file:', error.message);
       } else {
-        console.log(`✅ OS hosts file updated for ${domain}`);
+        console.log(`OS hosts file updated for ${domain}`);
       }
     });
   });
@@ -103,18 +111,27 @@ program
   .command('remove <domain>')
   .description('Remove a local route')
   .action((domain) => {
+    const config = readConfig();
+    const routeConfig = config.routes[domain];
+
     updateConfig(config => {
       delete config.routes[domain];
     });
-    console.log(`✅ Route removed from config: ${domain}`);
-    
+
+    console.log(`Route removed: ${domain}`);
+
+    // Wildcard routes don't have hosts file entries
+    if (routeConfig?.wildcard) {
+      return;
+    }
+
     console.log('Requesting permission to modify OS hosts file...');
     const dnsScript = path.join(__dirname, '..', '..', 'bin', 'vroute-dns.js');
     sudo.exec(`node "${dnsScript}" remove ${domain}`, { name: 'vroute' }, (error) => {
       if (error) {
         console.error('Failed to update hosts file:', error.message);
       } else {
-        console.log(`✅ OS hosts file updated for ${domain}`);
+        console.log(`OS hosts file updated for ${domain}`);
       }
     });
   });
@@ -132,7 +149,8 @@ program
     console.log('Active Routes:');
     domains.forEach(d => {
       const route = config.routes[d]!;
-      console.log(`  ${d} -> 127.0.0.1:${route.port}`);
+      const wildcard = route.wildcard ? ' [wildcard]' : '';
+      console.log(`  ${d} -> 127.0.0.1:${route.port}${wildcard}`);
     });
   });
 

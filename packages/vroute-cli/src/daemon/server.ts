@@ -35,15 +35,31 @@ app.get('/api/config', (req, res) => {
 });
 
 app.post('/api/routes', (req, res) => {
-  const { domain, port, ssl, cors } = req.body;
+  const { domain, port, ssl, cors, wildcard, tenantHeader } = req.body;
   if (!domain || !port) {
     res.status(400).json({ error: 'Missing domain or port' });
     return;
   }
 
+  const isWildcard = !!wildcard || domain.startsWith('*.');
+
   updateConfig(config => {
-    config.routes[domain] = { port: parseInt(port, 10), ssl: !!ssl, cors: !!cors };
+    config.routes[domain] = {
+      port: parseInt(port, 10),
+      ssl: !!ssl,
+      cors: !!cors,
+      wildcard: isWildcard,
+      tenantHeader: tenantHeader || undefined,
+    };
   });
+
+  // Wildcard routes don't need hosts file entries (resolved via DNS or .localhost)
+  if (isWildcard) {
+    const newConfig = readConfig();
+    io?.emit('config', newConfig);
+    res.json({ success: true, config: newConfig });
+    return;
+  }
 
   const dnsScript = path.join(__dirname, '..', '..', 'bin', 'vroute-dns.js');
   sudo.exec(`node "${dnsScript}" add ${domain}`, { name: 'vroute' }, (error) => {
@@ -60,10 +76,20 @@ app.post('/api/routes', (req, res) => {
 
 app.delete('/api/routes/:domain', (req, res) => {
   const domain = req.params.domain;
-  
+  const config = readConfig();
+  const routeConfig = config.routes[domain];
+
   updateConfig(config => {
     delete config.routes[domain];
   });
+
+  // Wildcard routes don't have hosts file entries
+  if (routeConfig?.wildcard) {
+    const newConfig = readConfig();
+    io?.emit('config', newConfig);
+    res.json({ success: true, config: newConfig });
+    return;
+  }
 
   const dnsScript = path.join(__dirname, '..', '..', 'bin', 'vroute-dns.js');
   sudo.exec(`node "${dnsScript}" remove ${domain}`, { name: 'vroute' }, (error) => {

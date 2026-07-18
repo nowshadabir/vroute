@@ -1,36 +1,74 @@
 import http from 'http';
 import httpProxy from 'http-proxy';
-import { readConfig } from '../state/config';
+import { readConfig, type RouteConfig } from '../state/config';
 import { EventEmitter } from 'events';
 
 export const proxyEvents = new EventEmitter();
 
+export interface ResolvedRoute {
+  config: RouteConfig;
+  subdomain?: string;
+}
+
+/**
+ * Resolves a host to a route config.
+ * Priority: exact match > wildcard match.
+ */
+export function resolveRoute(host: string, routes: Record<string, RouteConfig>): ResolvedRoute | undefined {
+  // 1. Exact match
+  if (routes[host]) {
+    return { config: routes[host] };
+  }
+
+  // 2. Wildcard match
+  for (const [pattern, routeConfig] of Object.entries(routes)) {
+    if (!routeConfig.wildcard) continue;
+
+    // Extract base from wildcard pattern: "*.app.localhost" → "app.localhost"
+    const base = pattern.replace(/^\*\./, '');
+
+    // Check if host is a subdomain of the base
+    if (host === base || host.endsWith('.' + base)) {
+      const subdomain = host === base ? '' : host.slice(0, host.length - base.length - 1);
+      return { config: routeConfig, subdomain };
+    }
+  }
+
+  return undefined;
+}
+
 // Create a proxy server with custom application logic
 const proxy = httpProxy.createProxyServer({
-  ws: true, // Support WebSockets
+  ws: true,
   xfwd: true,
 });
 
 proxy.on('proxyReq', (proxyReq, req, res, options) => {
-  // Store start time on the request object for duration calculation
   (req as any)._startTime = Date.now();
 });
 
-// Module 2C: Middleware Injector (CORS Bypass)
+// CORS + Tenant Header Injection
 proxy.on('proxyRes', function (proxyRes, req, res) {
   const hostHeader = req.headers.host;
   const host = hostHeader ? (hostHeader as string).split(':')[0] : '';
   const config = readConfig();
-  const routeConfig = host ? config.routes[host] : undefined;
+  const resolved = host ? resolveRoute(host, config.routes) : undefined;
 
-  if (routeConfig && routeConfig.cors) {
-    // Inject CORS headers to bypass local restrictions
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (resolved) {
+    // CORS bypass
+    if (resolved.config.cors) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    }
+
+    // Tenant header injection for wildcard routes
+    if (resolved.config.wildcard && resolved.subdomain !== undefined) {
+      const headerKey = resolved.config.tenantHeader || 'X-Vroute-Tenant';
+      res.setHeader(headerKey, resolved.subdomain);
+    }
   }
 
-  // Calculate duration
   const duration = Date.now() - ((req as any)._startTime || Date.now());
 
   proxyEvents.emit('request-log', {
@@ -63,34 +101,30 @@ proxy.on('error', function (err, req, res) {
   });
 });
 
-// Module 2B: Dynamic Routing
+// HTTP Proxy Server
 export const proxyServer = http.createServer((req, res) => {
   const hostHeader = req.headers.host;
-  
+
   if (!hostHeader) {
     res.writeHead(400, { 'Content-Type': 'text/plain' });
     res.end('Bad Request: Missing Host header');
     return;
   }
 
-  // Extract domain without port if any
   const host = hostHeader.split(':')[0] as string;
   const config = readConfig();
-  
-  const routeConfig = config.routes[host];
+  const resolved = resolveRoute(host, config.routes);
 
-  if (routeConfig && routeConfig.port) {
-    // We found a route mapping! Proxy the request.
-    const target = `http://127.0.0.1:${routeConfig.port}`;
+  if (resolved && resolved.config.port) {
+    const target = `http://127.0.0.1:${resolved.config.port}`;
     proxy.web(req, res, { target });
   } else {
-    // No route found for this domain
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end(`vroute: 404 Not Found. No route mapping found for ${host}`);
   }
 });
 
-// Handle WebSocket upgrade
+// WebSocket upgrade
 proxyServer.on('upgrade', (req, socket, head) => {
   const hostHeader = req.headers.host;
   if (!hostHeader) {
@@ -100,10 +134,10 @@ proxyServer.on('upgrade', (req, socket, head) => {
 
   const host = hostHeader.split(':')[0] as string;
   const config = readConfig();
-  const routeConfig = config.routes[host];
+  const resolved = resolveRoute(host, config.routes);
 
-  if (routeConfig && routeConfig.port) {
-    const target = `http://127.0.0.1:${routeConfig.port}`;
+  if (resolved && resolved.config.port) {
+    const target = `http://127.0.0.1:${resolved.config.port}`;
     proxy.ws(req, socket, head, { target });
   } else {
     socket.destroy();

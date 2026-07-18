@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { io } from 'socket.io-client';
-import { Activity, Globe, Server, Link as LinkIcon, ExternalLink, Trash2, Plus } from 'lucide-react';
+import { Activity, Globe, Server, Link as LinkIcon, ExternalLink, Trash2, Plus, Hash } from 'lucide-react';
 
 import toast, { Toaster } from 'react-hot-toast';
 import { cn } from './lib/utils';
@@ -11,6 +11,8 @@ interface RouteConfig {
   port: number;
   ssl: boolean;
   cors: boolean;
+  wildcard?: boolean;
+  tenantHeader?: string;
 }
 
 interface Config {
@@ -37,6 +39,8 @@ function App() {
   const [newPort, setNewPort] = useState('');
   const [newSsl, setNewSsl] = useState(true);
   const [newCors, setNewCors] = useState(true);
+  const [newWildcard, setNewWildcard] = useState(false);
+  const [newTenantHeader, setNewTenantHeader] = useState('X-Vroute-Tenant');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -75,13 +79,22 @@ function App() {
     e.preventDefault();
     if (!newDomain || !newPort) return;
 
+    const isWildcard = newWildcard || newDomain.startsWith('*.');
+
     setIsSubmitting(true);
     const toastId = toast.loading('Adding route...');
     try {
       const res = await fetch('/api/routes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: newDomain, port: parseInt(newPort, 10), ssl: newSsl, cors: newCors }),
+        body: JSON.stringify({
+          domain: newDomain,
+          port: parseInt(newPort, 10),
+          ssl: newSsl,
+          cors: newCors,
+          wildcard: isWildcard,
+          tenantHeader: isWildcard ? newTenantHeader : undefined,
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -90,6 +103,7 @@ function App() {
         toast.success(`Route added: ${newDomain}`, { id: toastId });
         setNewDomain('');
         setNewPort('');
+        setNewWildcard(false);
       }
     } catch (err: any) {
       toast.error(err.message, { id: toastId });
@@ -164,7 +178,7 @@ function App() {
                     type="text"
                     value={newDomain}
                     onChange={(e) => setNewDomain(e.target.value)}
-                    placeholder="myapp.test"
+                    placeholder={newWildcard ? "*.myapp.localhost" : "myapp.test"}
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent placeholder:text-gray-400"
                     required
                   />
@@ -189,7 +203,23 @@ function App() {
                     <input type="checkbox" checked={newCors} onChange={(e) => setNewCors(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
                     <span className="text-xs text-gray-600">CORS</span>
                   </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={newWildcard} onChange={(e) => setNewWildcard(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
+                    <span className="text-xs text-gray-600">Multi-Tenant</span>
+                  </label>
                 </div>
+                {newWildcard && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Tenant Header</label>
+                    <input
+                      type="text"
+                      value={newTenantHeader}
+                      onChange={(e) => setNewTenantHeader(e.target.value)}
+                      placeholder="X-Vroute-Tenant"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent placeholder:text-gray-400 font-mono"
+                    />
+                  </div>
+                )}
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -217,21 +247,32 @@ function App() {
                     <div className="flex items-start justify-between">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <LinkIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          {route.wildcard ? (
+                            <Hash className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                          ) : (
+                            <LinkIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          )}
                           <span className="text-sm font-medium text-gray-900 truncate">{domain}</span>
                         </div>
                         <div className="flex items-center gap-2 mt-1 ml-5.5">
                           <span className="text-xs text-gray-500 font-mono">:{route.port}</span>
-                          <a
-                            href={`${route.ssl ? 'https' : 'http'}://${domain}${route.ssl ? ':8443' : ':8080'}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-gray-400 hover:text-gray-600"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
+                          {!route.wildcard && (
+                            <a
+                              href={`${route.ssl ? 'https' : 'http'}://${domain}${route.ssl ? ':8443' : ':8080'}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
                         </div>
                         <div className="flex gap-1.5 mt-2 ml-5.5">
+                          {route.wildcard && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-50 text-purple-700">
+                              MULTI-TENANT
+                            </span>
+                          )}
                           <span className={cn(
                             "px-1.5 py-0.5 text-[10px] font-medium rounded",
                             route.ssl ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
@@ -240,6 +281,11 @@ function App() {
                             "px-1.5 py-0.5 text-[10px] font-medium rounded",
                             route.cors ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-500"
                           )}>CORS</span>
+                          {route.wildcard && route.tenantHeader && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600 font-mono">
+                              {route.tenantHeader}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <button

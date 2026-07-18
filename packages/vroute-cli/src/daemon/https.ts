@@ -1,7 +1,8 @@
 import https from 'https';
 import tls from 'tls';
 import { generateDomainCert } from '../ssl/certs';
-import { proxyServer } from './proxy';
+import { proxyServer, resolveRoute } from './proxy';
+import { readConfig } from '../state/config';
 
 const secureContexts = new Map<string, tls.SecureContext>();
 
@@ -10,14 +11,9 @@ function getSecureContext(domain: string): tls.SecureContext {
     return secureContexts.get(domain)!;
   }
 
-  // Generate or load cert for this domain
   const { key, cert } = generateDomainCert(domain);
-  
-  const ctx = tls.createSecureContext({
-    key,
-    cert
-  });
 
+  const ctx = tls.createSecureContext({ key, cert });
   secureContexts.set(domain, ctx);
   return ctx;
 }
@@ -25,17 +21,20 @@ function getSecureContext(domain: string): tls.SecureContext {
 export const httpsProxyServer = https.createServer({
   SNICallback: (servername, cb) => {
     try {
-      const { readConfig } = require('../state/config');
       const config = readConfig();
-      const routeConfig = config.routes[servername];
+      const resolved = resolveRoute(servername, config.routes);
 
-      if (routeConfig && routeConfig.ssl === false) {
-        // Explicitly disabled SSL for this route
+      if (resolved && resolved.config.ssl === false) {
         cb(new Error(`SSL is disabled for ${servername}`));
         return;
       }
 
-      const ctx = getSecureContext(servername);
+      // Use the wildcard pattern as cert key if it's a wildcard match
+      const certKey = resolved?.subdomain !== undefined && resolved.subdomain !== ''
+        ? Object.entries(config.routes).find(([, r]) => r.wildcard)?.[0] || servername
+        : servername;
+
+      const ctx = getSecureContext(certKey);
       cb(null, ctx);
     } catch (err) {
       console.error(`Failed to generate/load cert for ${servername}:`, err);
@@ -43,14 +42,6 @@ export const httpsProxyServer = https.createServer({
     }
   }
 }, (req, res) => {
-  // We forward the request to the same proxy engine we built in Phase 2
-  // But we need to make sure we pass it to the proxy request handler
-  // Wait, proxyServer is an http.Server, but it uses the http-proxy instance inside.
-  // We should extract the request handler from proxyServer or just use the same logic.
-  // Actually, proxyServer from proxy.ts is just a standard request listener.
-  // Let's import the request listener directly or let proxyServer handle it.
-  
-  // To keep it simple, we just emit the 'request' event on proxyServer
   proxyServer.emit('request', req, res);
 });
 

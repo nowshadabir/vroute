@@ -6,6 +6,8 @@ export interface RouteConfig {
   port: number;
   ssl: boolean;
   cors: boolean;
+  wildcard?: boolean;
+  tenantHeader?: string;
 }
 
 export interface VRouteConfig {
