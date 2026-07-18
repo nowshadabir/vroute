@@ -34,18 +34,21 @@ program
 
     // Resolve the path to the compiled daemon server
     const daemonPath = path.join(__dirname, '..', 'daemon', 'server.js');
-    
+
     console.log('Starting vroute daemon...');
-    
+
     // Spawn the daemon process in detached mode
     const child = spawn(process.execPath, [daemonPath], {
       detached: true,
-      stdio: 'ignore' // We don't want to hold onto the child's stdio
+      stdio: 'ignore'
     });
 
-    child.unref(); // Allow the parent process to exit independently of the child
-    
-    console.log('Daemon started in background (PID will be written to config soon).');
+    // Write PID immediately so stop/status work even if daemon hasn't started yet
+    updateConfig((c) => { c.daemonPid = child.pid!; });
+
+    child.unref();
+
+    console.log(`Daemon started (PID: ${child.pid})`);
   });
 
 program
