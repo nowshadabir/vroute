@@ -1,0 +1,99 @@
+================================================================================
+PROJECT BLUEPRINT: ZERO-CONFIG LOCAL DNS & SSL ROUTER
+================================================================================
+
+1. WHY WE ARE BUILDING THIS
+--------------------------------------------------------------------------------
+The fundamental problem in local web development is the friction involved in 
+routing and securing local environments. Developers frequently need to test 
+third-party services (e.g., payment gateway sandboxes, webhooks, OAuth 
+callbacks) that strictly require secure HTTPS connections and standard domains 
+rather than raw local IPs or localhost ports.
+
+Currently, achieving this involves:
+- Manually generating SSL certificates.
+- Configuring complex reverse proxies (like NGINX).
+- Manually editing system-level files like `/etc/hosts`.
+
+This manual process is tedious, error-prone, and heavily dependent on the host 
+operating system. The goal of this project is to eliminate this friction entirely. 
+We are building an open-source, cross-platform utility that handles DNS mapping, 
+certificate generation, OS trust injection, and traffic proxying with a single 
+click, drastically improving the Developer Experience (DX).
+
+2. WHAT WE ARE GOING TO BUILD
+--------------------------------------------------------------------------------
+We are building a lightweight, cross-platform CLI tool paired with a modern, 
+glassmorphism web dashboard. It acts as an automated background reverse proxy 
+and local DNS manager.
+
+Key Capabilities:
+- Instant Local Domains: Maps custom domains (e.g., `app.test`) to local ports 
+  (e.g., `3000`).
+- Auto-SSL: Dynamically generates and assigns trusted SSL certificates to those 
+  local domains, ensuring a "Green Padlock" in the browser.
+- One-Click CORS Bypass: Injects headers to prevent cross-origin resource errors 
+  during local API testing.
+- Platform Agnostic: Operates seamlessly across Linux, macOS, and Windows.
+- Zero Configuration: Driven entirely by a minimalist web UI; no text files or 
+  CLI arguments required for daily use.
+
+3. ARCHITECTURAL MODULES & DEVELOPMENT PLAN
+--------------------------------------------------------------------------------
+The system is divided into six distinct phases. The AI agent should build 
+these sequentially, ensuring stability before moving to the next.
+
+PHASE 1: Core Architecture & State Management
+Goal: Establish process separation and data persistence.
+- Module 1A: CLI Orchestrator. Build the global command interface (e.g., 
+  `proxigo ui`) responsible for starting the background daemon.
+- Module 1B: The Daemon. Create a persistent background Node.js server to 
+  hold routing state and serve the UI.
+- Module 1C: State Engine. Implement JSON-based configuration storage in the 
+  user's home directory to persist active routes across reboots.
+
+PHASE 2: The Reverse Proxy Engine
+Goal: Intercept and route HTTP traffic.
+- Module 2A: Port Binding. Securely bind the Daemon to ports 80 and 443 on 
+  `127.0.0.1`.
+- Module 2B: Dynamic Routing. Parse incoming `Host` headers and proxy 
+  requests to the corresponding mapped local port.
+- Module 2C: Middleware Injector. Add support for injecting headers, 
+  specifically `Access-Control-Allow-Origin: *` for the CORS bypass feature.
+
+PHASE 3: Cross-Platform OS Operations (DNS)
+Goal: Safely modify the hosts file across different environments.
+- Module 3A (Linux): Script modifications to `/etc/hosts` using `pkexec` or 
+  `sudo` wrappers for privilege escalation.
+- Module 3B (macOS): Script modifications to `/etc/hosts` utilizing 
+  `osascript` for native password prompts.
+- Module 3C (Windows): Script modifications to `C:\Windows\System32\drivers\etc\hosts` 
+  using PowerShell and the `Start-Process -Verb RunAs` command.
+
+PHASE 4: SSL Generation & OS Trust Store
+Goal: Automate the "Green Padlock" locally.
+- Module 4A: CA Generation. Use `node-forge` or a wrapper for `mkcert` to 
+  generate a local Certificate Authority upon installation.
+- Module 4B: Trust Injection. 
+    - Linux: Copy CA to `/usr/local/share/ca-certificates/` and run 
+      `update-ca-certificates`.
+    - macOS: Use `security add-trusted-cert` for the Keychain.
+    - Windows: Use `certutil -addstore -f "ROOT"`.
+- Module 4C: SNI Handling. Configure the Daemon's HTTPS server to use Server 
+  Name Indication to serve the correct SSL certificate based on the requested domain.
+
+PHASE 5: The Web Interface (UI/UX)
+Goal: Build the developer-facing control panel.
+- Module 5A: Static UI Export. Build a fully client-side Next.js dashboard 
+  using Tailwind CSS (Glassmorphism design) and export as static HTML/JS.
+- Module 5B: UI Serving. Configure the Daemon to serve these static files 
+  on a dedicated port (e.g., `9999`).
+- Module 5C: Real-time Communication. Implement Server-Sent Events (SSE) or 
+  WebSockets to sync state instantly between the Daemon and the UI.
+
+PHASE 6: Packaging & Distribution
+Goal: Make the tool easily installable.
+- Module 6A: NPM Configuration. Set the `bin` directive in `package.json` to 
+  link the CLI orchestrator globally.
+- Module 6B: Post-Install Setup. Write a script to initialize the configuration 
+  directory and verify port availability (80/443) upon NPM installation.
