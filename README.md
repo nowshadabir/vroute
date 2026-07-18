@@ -31,9 +31,18 @@ Currently, this involves:
 - **Zero Configuration** - Drive everything from a modern web UI
 - **Persistent Routes** - Routes survive reboots
 
+## Packages
+
+This is a monorepo containing:
+
+| Package | Description | Status |
+|---------|-------------|--------|
+| [`vroute-cli`](./packages/vroute-cli) | npm CLI package with web dashboard | Active |
+| [`vroute-desktop`](./packages/vroute-desktop) | Electron desktop app | Coming Soon |
+
 ## Quick Start
 
-### Installation
+### Installation (npm)
 
 ```bash
 npm install -g vroute
@@ -74,19 +83,25 @@ vroute add app.test 3000
 | `vroute setup` | Generate and trust SSL certificates |
 | `vroute ui` | Open the web dashboard |
 
-## Architecture
+## Project Structure
 
 ```
 vroute/
-├── src/
-│   ├── cli/          # Command-line interface
-│   ├── daemon/       # Background server
-│   ├── dashboard/    # Web UI (Next.js + Tailwind)
-│   ├── dns/          # Hosts file management
-│   ├── ssl/          # Certificate generation
-│   └── state/        # Configuration persistence
-├── bin/              # CLI entry points
-└── dist/             # Compiled output
+├── packages/
+│   ├── vroute-cli/          # npm CLI package
+│   │   ├── src/
+│   │   │   ├── cli/         # Command-line interface
+│   │   │   ├── daemon/      # Background server
+│   │   │   ├── dashboard/   # Web UI (Vite + React)
+│   │   │   ├── dns/         # Hosts file management
+│   │   │   ├── ssl/         # Certificate generation
+│   │   │   └── state/       # Configuration persistence
+│   │   ├── bin/             # CLI entry points
+│   │   └── package.json
+│   └── vroute-desktop/      # Desktop app (coming soon)
+├── README.md
+├── LICENSE
+└── CONTRIBUTING.md
 ```
 
 ## Development
@@ -100,27 +115,34 @@ vroute/
 
 ```bash
 # Clone the repository
-git clone https://github.com/vivagotechnologies/vroute.git
+git clone https://github.com/nowshadabir/vroute.git
 cd vroute
 
 # Install dependencies
 npm install
 
-# Build the project
-npm run build
+# Build the CLI package
+npm run build:cli
 
 # Run in development mode
-npm run dev
+npm run dev:cli
 ```
 
-### Project Structure
+### Working on CLI Package
 
-- **CLI** (`src/cli/`): Command-line interface using Commander.js
-- **Daemon** (`src/daemon/`): Background Express server
-- **Dashboard** (`src/dashboard/`): Next.js web interface
-- **DNS** (`src/dns/`): Cross-platform hosts file management
-- **SSL** (`src/ssl/`): Certificate generation using node-forge
-- **State** (`src/state/`): JSON-based configuration storage
+```bash
+cd packages/vroute-cli
+
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Test locally
+npm link
+vroute --version
+```
 
 ## Platform Support
 
@@ -129,6 +151,16 @@ npm run dev
 | Linux | `/etc/hosts` via sudo | `/usr/local/share/ca-certificates/` |
 | macOS | `/etc/hosts` via osascript | Keychain via `security add-trusted-cert` |
 | Windows | PowerShell `Start-Process -Verb RunAs` | `certutil -addstore` |
+
+## Roadmap
+
+- [x] CLI tool with web dashboard
+- [x] Cross-platform DNS management
+- [x] Auto-SSL certificate generation
+- [ ] Desktop app (Windows .exe)
+- [ ] Desktop app (macOS .app)
+- [ ] System tray integration
+- [ ] Auto-updates
 
 ## Contributing
 
@@ -144,12 +176,6 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 
 This project is licensed under the ISC License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
-
-- Built with Node.js, Express, and TypeScript
-- Dashboard powered by Next.js and Tailwind CSS
-- SSL certificates generated with node-forge
-
 ---
 
-Made with ❤️ by [VivaGo Technologies](https://github.com/vivagotechnologies)
+Made with ❤️ by [Kazi Nowshad Abir](https://github.com/nowshadabir) | [VivaGo Technologies](https://github.com/vivagotechnologies)

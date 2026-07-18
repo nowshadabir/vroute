@@ -1,22 +1,19 @@
 {
   "name": "vroute",
   "version": "1.0.0",
+  "private": true,
   "description": "Zero-config local DNS & SSL router for seamless local web development",
-  "main": "dist/cli/index.js",
-  "bin": {
-    "vroute": "./bin/vroute.js"
-  },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "build": "npm run build --prefix src/dashboard && tsc",
-    "postinstall": "node ./bin/postinstall.js",
-    "dev": "ts-node src/cli/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "tsc --noEmit",
-    "clean": "rm -rf dist node_modules"
+    "build:cli": "npm run build --workspace=packages/vroute-cli",
+    "dev:cli": "npm run dev --workspace=packages/vroute-cli",
+    "publish:cli": "npm run publish --workspace=packages/vroute-cli"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vivagotechnologies/vroute.git"
+    "url": "git+https://github.com/nowshadabir/vroute.git"
   },
   "keywords": [
     "local-ssl",
@@ -30,29 +27,13 @@
     "ngrok",
     "devtools"
   ],
-  "author": "VivaGo Technologies",
+  "author": "Kazi Nowshad Abir (VivaGo Technologies)",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/vivagotechnologies/vroute/issues"
+    "url": "https://github.com/nowshadabir/vroute/issues"
   },
-  "homepage": "https://github.com/vivagotechnologies/vroute#readme",
+  "homepage": "https://github.com/nowshadabir/vroute#readme",
   "engines": {
     "node": ">=18.0.0"
-  },
-  "dependencies": {
-    "commander": "^15.0.0",
-    "express": "^5.2.1",
-    "http-proxy": "^1.18.1",
-    "node-forge": "^1.4.0",
-    "socket.io": "^4.8.3",
-    "sudo-prompt": "^9.2.1"
-  },
-  "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/http-proxy": "^1.17.17",
-    "@types/node": "^26.1.1",
-    "@types/node-forge": "^1.3.14",
-    "ts-node": "^10.9.2",
-    "typescript": "^7.0.2"
   }
 }
