@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { spawn } from 'child_process';
+import { spawn, exec } from 'child_process';
 import path from 'path';
 import { readConfig, updateConfig } from '../state/config';
 import sudo from 'sudo-prompt';
@@ -144,6 +144,38 @@ program
       console.log('❌ Daemon is not running.');
     }
   });
+
+program
+  .command('ui')
+  .description('Open the dashboard in your browser')
+  .action(() => {
+    const config = readConfig();
+    if (!isDaemonRunning(config.daemonPid)) {
+      console.log('⚠️  Daemon is not running. Starting it now...');
+      const daemonPath = path.join(__dirname, '..', 'daemon', 'server.js');
+      const child = spawn(process.execPath, [daemonPath], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      child.unref();
+      // Wait for daemon to start before opening browser
+      setTimeout(() => openBrowser(), 2000);
+    } else {
+      openBrowser();
+    }
+  });
+
+function openBrowser() {
+  const url = 'http://localhost:9999';
+  console.log(`Opening ${url}...`);
+  const platform = process.platform;
+  const cmd = platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
+  exec(`${cmd} ${url}`, (error) => {
+    if (error) {
+      console.log(`Could not open browser automatically. Visit ${url} manually.`);
+    }
+  });
+}
 
 program
   .command('setup')
