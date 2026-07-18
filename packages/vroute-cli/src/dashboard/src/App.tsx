@@ -62,7 +62,6 @@ function App() {
       setLogs((prev) => [log, ...prev].slice(0, 100));
     });
 
-    // Fetch active ports
     const fetchPorts = async () => {
       try {
         const res = await fetch('/api/ports');
@@ -156,18 +155,21 @@ function App() {
       <Toaster position="bottom-right" toastOptions={{ className: 'text-sm' }} />
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-screen-2xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
               <Globe className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">vroute</h1>
-              <p className="text-xs text-gray-500">Local DNS & SSL Router</p>
+              <h1 className="text-lg font-semibold text-gray-900 leading-tight">vroute</h1>
+              <p className="text-[11px] text-gray-400">Local DNS & SSL Router</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <div className="text-xs text-gray-400">
+              {routes.length} route{routes.length !== 1 ? 's' : ''} &middot; {ports.length} port{ports.length !== 1 ? 's' : ''}
+            </div>
             <span className={cn(
               "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
               connected ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
@@ -179,23 +181,51 @@ function App() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <main className="max-w-screen-2xl mx-auto px-6 py-5 space-y-5">
 
-          {/* Left: Routes */}
-          <div className="lg:col-span-1 space-y-4">
+        {/* Active Ports — compact full-width strip */}
+        <div className="bg-white rounded-lg border border-gray-200">
+          <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+              <Radio className="w-3.5 h-3.5" />
+              Active Ports
+            </h2>
+            <span className="text-[10px] text-gray-400">{ports.length} listening</span>
+          </div>
+          <div className="px-4 py-3">
+            {ports.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {ports.map((p) => (
+                  <div key={p.port} className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-md border border-gray-100 text-sm">
+                    <span className="font-mono font-semibold text-gray-900">{p.port}</span>
+                    <span className="text-gray-300">|</span>
+                    <span className="text-xs text-gray-500 truncate max-w-[120px]" title={p.process}>{p.process || 'unknown'}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center py-2">No active ports</p>
+            )}
+          </div>
+        </div>
+
+        {/* Two columns: Routes + Traffic */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+          {/* Left Sidebar — Routes */}
+          <div className="lg:col-span-4 space-y-4">
+
             {/* Add Route Form */}
             <div className="bg-white rounded-lg border border-gray-200">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <h2 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                  <Plus className="w-4 h-4" />
+              <div className="px-4 py-2.5 border-b border-gray-100">
+                <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5" />
                   Add Route
                 </h2>
               </div>
               <form onSubmit={handleAddRoute} className="p-4 space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Domain</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Domain</label>
                   <input
                     type="text"
                     value={newDomain}
@@ -206,7 +236,7 @@ function App() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Port</label>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Port</label>
                   <input
                     type="number"
                     value={newPort}
@@ -232,7 +262,7 @@ function App() {
                 </div>
                 {newWildcard && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Tenant Header</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Tenant Header</label>
                     <input
                       type="text"
                       value={newTenantHeader}
@@ -254,20 +284,20 @@ function App() {
 
             {/* Active Routes */}
             <div className="bg-white rounded-lg border border-gray-200">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <h2 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                  <Server className="w-4 h-4" />
+              <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Server className="w-3.5 h-3.5" />
                   Routes
-                  {routes.length > 0 && (
-                    <span className="ml-auto text-xs text-gray-400">{routes.length}</span>
-                  )}
                 </h2>
+                {routes.length > 0 && (
+                  <span className="text-[10px] text-gray-400">{routes.length}</span>
+                )}
               </div>
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
                 {routes.length > 0 ? routes.map(([domain, route]) => (
-                  <div key={domain} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                  <div key={domain} className="px-4 py-3 hover:bg-gray-50 transition-colors group">
                     <div className="flex items-start justify-between">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           {route.wildcard ? (
                             <Hash className="w-3.5 h-3.5 text-purple-500 shrink-0" />
@@ -289,11 +319,9 @@ function App() {
                             </a>
                           )}
                         </div>
-                        <div className="flex gap-1.5 mt-2 ml-5.5">
+                        <div className="flex gap-1.5 mt-1.5 ml-5.5">
                           {route.wildcard && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-50 text-purple-700">
-                              MULTI-TENANT
-                            </span>
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-50 text-purple-700">MULTI</span>
                           )}
                           <span className={cn(
                             "px-1.5 py-0.5 text-[10px] font-medium rounded",
@@ -303,16 +331,11 @@ function App() {
                             "px-1.5 py-0.5 text-[10px] font-medium rounded",
                             route.cors ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-500"
                           )}>CORS</span>
-                          {route.wildcard && route.tenantHeader && (
-                            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600 font-mono">
-                              {route.tenantHeader}
-                            </span>
-                          )}
                         </div>
                       </div>
                       <button
                         onClick={() => handleDeleteRoute(domain)}
-                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
                         title="Remove route"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -320,56 +343,25 @@ function App() {
                     </div>
                   </div>
                 )) : (
-                  <div className="px-4 py-8 text-center">
+                  <div className="px-4 py-10 text-center">
                     <Server className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">No routes configured</p>
-                    <p className="text-xs text-gray-400 mt-1">Add a route to get started</p>
+                    <p className="text-sm text-gray-500">No routes yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Add a domain to get started</p>
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Active Ports */}
-          <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg border border-gray-200">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                  <Radio className="w-4 h-4" />
-                  Active Ports
-                  {ports.length > 0 && (
-                    <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">
-                      {ports.length}
-                    </span>
-                  )}
-                </h2>
-              </div>
-              <div className="p-4">
-                {ports.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                    {ports.map((p) => (
-                      <div key={p.port} className="px-3 py-2 bg-gray-50 rounded-md border border-gray-100">
-                        <div className="text-sm font-mono font-semibold text-gray-900">{p.port}</div>
-                        <div className="text-[10px] text-gray-500 truncate" title={p.process}>{p.process || 'unknown'}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500 text-center py-4">No active ports detected</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Traffic Log */}
-          <div className="lg:col-span-2">
+          {/* Right — Traffic Log */}
+          <div className="lg:col-span-8">
             <div className="bg-white rounded-lg border border-gray-200 h-full flex flex-col">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
+              <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5" />
                   Traffic
                   {logs.length > 0 && (
-                    <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">
+                    <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">
                       {logs.length}
                     </span>
                   )}
@@ -377,7 +369,7 @@ function App() {
                 {logs.length > 0 && (
                   <button
                     onClick={() => setLogs([])}
-                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
                   >
                     Clear
                   </button>
@@ -387,35 +379,35 @@ function App() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Method</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Status</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Host</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Path</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500">Time</th>
+                      <th className="text-left px-4 py-2.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">Method</th>
+                      <th className="text-left px-4 py-2.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">Status</th>
+                      <th className="text-left px-4 py-2.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">Host</th>
+                      <th className="text-left px-4 py-2.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">Path</th>
+                      <th className="text-right px-4 py-2.5 text-[11px] font-medium text-gray-400 uppercase tracking-wide">Duration</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {logs.length > 0 ? logs.map((log, i) => (
                       <tr key={i} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-2.5">
-                          <span className={cn("px-2 py-0.5 text-xs font-medium rounded", getMethodColor(log.method))}>
+                        <td className="px-4 py-2">
+                          <span className={cn("px-2 py-0.5 text-[11px] font-medium rounded", getMethodColor(log.method))}>
                             {log.method}
                           </span>
                         </td>
-                        <td className={cn("px-4 py-2.5 font-mono text-xs font-medium", getStatusColor(log.status))}>
+                        <td className={cn("px-4 py-2 font-mono text-xs font-medium", getStatusColor(log.status))}>
                           {log.status}
                         </td>
-                        <td className="px-4 py-2.5 text-gray-600 text-xs">{log.host}</td>
-                        <td className="px-4 py-2.5 text-gray-900 text-xs font-mono max-w-[200px] truncate" title={log.url}>
+                        <td className="px-4 py-2 text-gray-600 text-xs">{log.host}</td>
+                        <td className="px-4 py-2 text-gray-900 text-xs font-mono max-w-[300px] truncate" title={log.url}>
                           {log.url}
                         </td>
-                        <td className="px-4 py-2.5 text-right text-xs text-gray-400 font-mono">
+                        <td className="px-4 py-2 text-right text-xs text-gray-400 font-mono">
                           {log.duration}ms
                         </td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={5} className="px-4 py-16 text-center">
+                        <td colSpan={5} className="px-4 py-20 text-center">
                           <Activity className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                           <p className="text-sm text-gray-500">Waiting for traffic</p>
                           <p className="text-xs text-gray-400 mt-1">Requests will appear here in real-time</p>
