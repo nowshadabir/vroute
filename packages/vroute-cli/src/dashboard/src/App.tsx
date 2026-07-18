@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { io } from 'socket.io-client';
-import { format } from 'date-fns';
-import { Activity, Radio, Server, Link as LinkIcon, ExternalLink, Trash2 } from 'lucide-react';
+import { Activity, Globe, Server, Link as LinkIcon, ExternalLink, Trash2, Plus } from 'lucide-react';
+
 import toast, { Toaster } from 'react-hot-toast';
+import { cn } from './lib/utils';
 import './index.css';
 
 interface RouteConfig {
@@ -31,8 +32,7 @@ function App() {
   const [config, setConfig] = useState<Config | null>(null);
   const [logs, setLogs] = useState<RequestLog[]>([]);
   const [connected, setConnected] = useState(false);
-  
-  // Form State
+
   const [newDomain, setNewDomain] = useState('');
   const [newPort, setNewPort] = useState('');
   const [newSsl, setNewSsl] = useState(true);
@@ -41,271 +41,296 @@ function App() {
 
   useEffect(() => {
     const socketUrl = import.meta.env.DEV ? 'http://localhost:9999' : window.location.origin;
-    
     const socket = io(socketUrl);
 
-    socket.on('connect', () => {
-      setConnected(true);
-    });
-
-    socket.on('disconnect', () => {
-      setConnected(false);
-    });
-
-    socket.on('config', (newConfig: Config) => {
-      setConfig(newConfig);
-    });
-
+    socket.on('connect', () => setConnected(true));
+    socket.on('disconnect', () => setConnected(false));
+    socket.on('config', (newConfig: Config) => setConfig(newConfig));
     socket.on('request-log', (log: RequestLog) => {
-      setLogs((prevLogs) => [log, ...prevLogs].slice(0, 100)); // Keep last 100
+      setLogs((prev) => [log, ...prev].slice(0, 100));
     });
 
-    return () => {
-      socket.disconnect();
-    };
+    return () => { socket.disconnect(); };
   }, []);
 
-  const getStatusClass = (status: number) => {
-    if (status >= 200 && status < 300) return 'status-ok';
-    if (status >= 300 && status < 400) return 'status-redirect';
-    return 'status-error';
+  const getStatusColor = (status: number) => {
+    if (status >= 200 && status < 300) return 'text-green-600';
+    if (status >= 300 && status < 400) return 'text-amber-600';
+    return 'text-red-500';
+  };
+
+  const getMethodColor = (method: string) => {
+    const colors: Record<string, string> = {
+      GET: 'bg-blue-50 text-blue-700',
+      POST: 'bg-green-50 text-green-700',
+      PUT: 'bg-amber-50 text-amber-700',
+      DELETE: 'bg-red-50 text-red-600',
+      PATCH: 'bg-purple-50 text-purple-700',
+      OPTIONS: 'bg-gray-100 text-gray-600',
+    };
+    return colors[method] || 'bg-gray-100 text-gray-600';
   };
 
   const handleAddRoute = async (e: FormEvent) => {
     e.preventDefault();
     if (!newDomain || !newPort) return;
-    
+
     setIsSubmitting(true);
-    const toastId = toast.loading('Waiting for OS permission to add route...');
+    const toastId = toast.loading('Adding route...');
     try {
       const res = await fetch('/api/routes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: newDomain,
-          port: parseInt(newPort, 10),
-          ssl: newSsl,
-          cors: newCors
-        })
+        body: JSON.stringify({ domain: newDomain, port: parseInt(newPort, 10), ssl: newSsl, cors: newCors }),
       });
       if (!res.ok) {
         const data = await res.json();
-        toast.error(`Failed to add route: ${data.error}`, { id: toastId });
+        toast.error(data.error || 'Failed to add route', { id: toastId });
       } else {
-        toast.success(`Route ${newDomain} added successfully!`, { id: toastId });
+        toast.success(`Route added: ${newDomain}`, { id: toastId });
         setNewDomain('');
         setNewPort('');
-        setNewSsl(true);
-        setNewCors(true);
       }
     } catch (err: any) {
-      toast.error(`Error adding route: ${err.message}`, { id: toastId });
+      toast.error(err.message, { id: toastId });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteRoute = async (domain: string) => {
-    if (!confirm(`Are you sure you want to remove ${domain}? This will prompt for your OS password to update the hosts file.`)) {
-      return;
-    }
-    const toastId = toast.loading(`Waiting for OS permission to remove ${domain}...`);
+    const toastId = toast.loading(`Removing ${domain}...`);
     try {
-      const res = await fetch(`/api/routes/${encodeURIComponent(domain)}`, {
-        method: 'DELETE'
-      });
+      const res = await fetch(`/api/routes/${encodeURIComponent(domain)}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json();
-        toast.error(`Failed to remove route: ${data.error}`, { id: toastId });
+        toast.error(data.error || 'Failed to remove', { id: toastId });
       } else {
-        toast.success(`Route ${domain} removed successfully!`, { id: toastId });
+        toast.success(`Removed ${domain}`, { id: toastId });
       }
     } catch (err: any) {
-      toast.error(`Error removing route: ${err.message}`, { id: toastId });
+      toast.error(err.message, { id: toastId });
     }
   };
 
+  const routes = config?.routes ? Object.entries(config.routes) : [];
+
   return (
-    <div className="dashboard-container">
-      <Toaster 
-        position="bottom-right" 
-        toastOptions={{ 
-          style: { 
-            background: 'rgba(22, 27, 34, 0.9)', 
-            backdropFilter: 'blur(10px)',
-            color: '#fff', 
-            border: '1px solid rgba(255, 255, 255, 0.1)' 
-          } 
-        }} 
-      />
-      <header className="glass-panel header">
-        <h1>
-          <Activity size={28} />
-          vroute Dashboard
-        </h1>
-        <div className="status-badge">
-          {connected ? (
-            <>
-              <div className="status-dot"></div>
-              Connected
-            </>
-          ) : (
-            <>
-              <Radio size={16} color="var(--error)" />
-              <span style={{ color: 'var(--error)' }}>Disconnected</span>
-            </>
-          )}
+    <div className="min-h-screen bg-gray-50">
+      <Toaster position="bottom-right" toastOptions={{ className: 'text-sm' }} />
+
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center">
+              <Globe className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-gray-900">vroute</h1>
+              <p className="text-xs text-gray-500">Local DNS & SSL Router</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium",
+              connected ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
+            )}>
+              <span className={cn("w-1.5 h-1.5 rounded-full", connected ? "bg-green-500" : "bg-gray-400")} />
+              {connected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
         </div>
       </header>
 
-      <div className="main-grid">
-        <aside className="glass-panel route-list-container">
-          <div className="panel-header">
-            <Server size={18} />
-            Route Management
-          </div>
-          
-          <form className="add-route-form" onSubmit={handleAddRoute}>
-            <div className="form-group">
-              <label>Domain</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="e.g. myapp.local" 
-                value={newDomain}
-                onChange={e => setNewDomain(e.target.value)}
-                required 
-              />
-            </div>
-            <div className="form-group">
-              <label>Target Port</label>
-              <input 
-                type="number" 
-                className="form-input" 
-                placeholder="e.g. 3000" 
-                value={newPort}
-                onChange={e => setNewPort(e.target.value)}
-                required 
-              />
-            </div>
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
-              <label className="checkbox-group">
-                <input type="checkbox" checked={newSsl} onChange={e => setNewSsl(e.target.checked)} />
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>SSL (HTTPS)</span>
-              </label>
-              <label className="checkbox-group">
-                <input type="checkbox" checked={newCors} onChange={e => setNewCors(e.target.checked)} />
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Bypass CORS</span>
-              </label>
-            </div>
-            <button type="submit" className="btn-primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Waiting for OS...' : 'Add Route'}
-            </button>
-          </form>
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          <div className="route-list">
-            {config?.routes && Object.entries(config.routes).length > 0 ? (
-              Object.entries(config.routes).map(([domain, routeConfig]) => (
-                <div key={domain} className="route-item">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div className="route-domain">
-                        <LinkIcon size={14} color="var(--accent)" />
-                        {domain}
-                      </div>
-                      <div className="route-target" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        127.0.0.1:{routeConfig.port}
-                        <a href={`${routeConfig.ssl ? 'https' : 'http'}://${domain}${routeConfig.ssl ? ':8443' : ':8080'}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
-                          <ExternalLink size={14} />
-                        </a>
-                      </div>
-                      <div className="route-badges">
-                        <span className={`badge ${routeConfig.ssl ? 'badge-active' : 'badge-inactive'}`}>
-                          SSL
-                        </span>
-                        <span className={`badge ${routeConfig.cors ? 'badge-active' : 'badge-inactive'}`}>
-                          CORS
-                        </span>
-                      </div>
-                    </div>
-                    <button className="btn-icon" onClick={() => handleDeleteRoute(domain)} title="Remove Route">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div style={{ padding: '1rem', color: 'var(--text-secondary)', textAlign: 'center', fontSize: '0.875rem' }}>
-                No active routes.
+          {/* Left: Routes */}
+          <div className="lg:col-span-1 space-y-4">
+            {/* Add Route Form */}
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h2 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Add Route
+                </h2>
               </div>
-            )}
-          </div>
-        </aside>
-
-        <main className="glass-panel log-viewer-container">
-          <div className="panel-header" style={{ justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Activity size={18} />
-              Real-time Traffic
+              <form onSubmit={handleAddRoute} className="p-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Domain</label>
+                  <input
+                    type="text"
+                    value={newDomain}
+                    onChange={(e) => setNewDomain(e.target.value)}
+                    placeholder="myapp.test"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent placeholder:text-gray-400"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Port</label>
+                  <input
+                    type="number"
+                    value={newPort}
+                    onChange={(e) => setNewPort(e.target.value)}
+                    placeholder="3000"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent placeholder:text-gray-400"
+                    required
+                  />
+                </div>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={newSsl} onChange={(e) => setNewSsl(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
+                    <span className="text-xs text-gray-600">SSL</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={newCors} onChange={(e) => setNewCors(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
+                    <span className="text-xs text-gray-600">CORS</span>
+                  </label>
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isSubmitting ? 'Adding...' : 'Add Route'}
+                </button>
+              </form>
             </div>
-            {logs.length > 0 && (
-              <button 
-                onClick={() => setLogs([])}
-                style={{ 
-                  background: 'none', border: 'none', color: 'var(--text-secondary)', 
-                  cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'underline' 
-                }}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-          <div className="log-table-container">
-            <table className="log-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '80px' }}>Method</th>
-                  <th>Status</th>
-                  <th>Host</th>
-                  <th>Path</th>
-                  <th>Time</th>
-                  <th style={{ textAlign: 'right' }}>Duration</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.length > 0 ? logs.map((log, i) => (
-                  <tr key={i} className="log-row">
-                    <td>
-                      <span className={`method-badge method-${log.method}`}>
-                        {log.method}
-                      </span>
-                    </td>
-                    <td className={getStatusClass(log.status)}>
-                      {log.status}
-                    </td>
-                    <td>{log.host}</td>
-                    <td className="url-col" title={log.url}>
-                      {log.url}
-                    </td>
-                    <td className="time-col">
-                      {format(new Date(log.timestamp), 'HH:mm:ss.SSS')}
-                    </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
-                      {log.duration}ms
-                    </td>
-                  </tr>
+
+            {/* Active Routes */}
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h2 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                  <Server className="w-4 h-4" />
+                  Routes
+                  {routes.length > 0 && (
+                    <span className="ml-auto text-xs text-gray-400">{routes.length}</span>
+                  )}
+                </h2>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {routes.length > 0 ? routes.map(([domain, route]) => (
+                  <div key={domain} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <LinkIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          <span className="text-sm font-medium text-gray-900 truncate">{domain}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 ml-5.5">
+                          <span className="text-xs text-gray-500 font-mono">:{route.port}</span>
+                          <a
+                            href={`${route.ssl ? 'https' : 'http'}://${domain}${route.ssl ? ':8443' : ':8080'}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                        <div className="flex gap-1.5 mt-2 ml-5.5">
+                          <span className={cn(
+                            "px-1.5 py-0.5 text-[10px] font-medium rounded",
+                            route.ssl ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
+                          )}>SSL</span>
+                          <span className={cn(
+                            "px-1.5 py-0.5 text-[10px] font-medium rounded",
+                            route.cors ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-500"
+                          )}>CORS</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteRoute(domain)}
+                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                        title="Remove route"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 )) : (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-                      Waiting for incoming requests...
-                    </td>
-                  </tr>
+                  <div className="px-4 py-8 text-center">
+                    <Server className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No routes configured</p>
+                    <p className="text-xs text-gray-400 mt-1">Add a route to get started</p>
+                  </div>
                 )}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
-        </main>
-      </div>
+
+          {/* Right: Traffic Log */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg border border-gray-200 h-full flex flex-col">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                  <Activity className="w-4 h-4" />
+                  Traffic
+                  {logs.length > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">
+                      {logs.length}
+                    </span>
+                  )}
+                </h2>
+                {logs.length > 0 && (
+                  <button
+                    onClick={() => setLogs([])}
+                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="flex-1 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Method</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Status</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Host</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Path</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-medium text-gray-500">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {logs.length > 0 ? logs.map((log, i) => (
+                      <tr key={i} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-2.5">
+                          <span className={cn("px-2 py-0.5 text-xs font-medium rounded", getMethodColor(log.method))}>
+                            {log.method}
+                          </span>
+                        </td>
+                        <td className={cn("px-4 py-2.5 font-mono text-xs font-medium", getStatusColor(log.status))}>
+                          {log.status}
+                        </td>
+                        <td className="px-4 py-2.5 text-gray-600 text-xs">{log.host}</td>
+                        <td className="px-4 py-2.5 text-gray-900 text-xs font-mono max-w-[200px] truncate" title={log.url}>
+                          {log.url}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-xs text-gray-400 font-mono">
+                          {log.duration}ms
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-16 text-center">
+                          <Activity className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                          <p className="text-sm text-gray-500">Waiting for traffic</p>
+                          <p className="text-xs text-gray-400 mt-1">Requests will appear here in real-time</p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </main>
     </div>
   );
 }
