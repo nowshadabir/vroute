@@ -2,11 +2,11 @@
 
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![npm](https://img.shields.io/npm/v/vroute.svg)](https://www.npmjs.com/package/vroute)
 
 > Zero-config local DNS & SSL router for seamless local web development
 
-**vroute** eliminates the friction of local web development by automatically handling DNS mapping, SSL certificate generation, OS trust injection, and traffic proxying with a single command.
+**vroute** eliminates the friction of local web development by automatically handling DNS mapping, SSL certificate generation, OS trust injection, and traffic proxying — all from a clean web dashboard.
 
 ## Why vroute?
 
@@ -20,16 +20,59 @@ Currently, this involves:
 - Configuring complex reverse proxies (NGINX)
 - Editing system files like `/etc/hosts`
 
-**vroute** automates all of this with a beautiful web dashboard.
+**vroute** automates all of this.
 
 ## Features
 
-- **Instant Local Domains** - Map custom domains (e.g., `app.test`) to local ports
-- **Auto-SSL** - Generate trusted SSL certificates automatically
-- **CORS Bypass** - Inject headers to prevent cross-origin errors
-- **Cross-Platform** - Works on Linux, macOS, and Windows
-- **Zero Configuration** - Drive everything from a modern web UI
-- **Persistent Routes** - Routes survive reboots
+- **Instant Local Domains** — Map custom domains (e.g., `app.test`) to local ports
+- **Auto-SSL** — Generate trusted SSL certificates automatically
+- **CORS Bypass** — Inject headers to prevent cross-origin errors
+- **Cross-Platform** — Works on Linux, macOS, and Windows
+- **Web Dashboard** — Clean, minimal UI to manage routes and monitor traffic
+- **Persistent Routes** — Routes survive reboots
+
+## Quick Start
+
+```bash
+# Install globally
+npm install -g vroute
+
+# Generate and trust local SSL certificates
+sudo vroute setup
+
+# Start the daemon
+sudo vroute start
+
+# Open the dashboard
+vroute ui
+
+# Add a route
+sudo vroute add myapp.test 3000
+```
+
+Visit `https://myapp.test` in your browser — it's proxied to `localhost:3000` with a valid SSL certificate.
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `vroute start` | Start the background daemon |
+| `vroute stop` | Stop the background daemon |
+| `vroute ui` | Open the web dashboard in browser |
+| `vroute add <domain> <port>` | Add a new local route |
+| `vroute remove <domain>` | Remove a local route |
+| `vroute list` | List all active routes |
+| `vroute status` | Check if daemon is running |
+| `vroute setup` | Generate and trust SSL certificates |
+
+## Dashboard
+
+The built-in web dashboard provides:
+- **Route management** — Add, view, and remove routes with SSL/CORS toggles
+- **Real-time traffic** — Monitor proxied requests with method, status, host, and latency
+- **Connection status** — Live WebSocket connection indicator
+
+Run `vroute ui` to open it at `http://localhost:9999`.
 
 ## Packages
 
@@ -38,125 +81,67 @@ This is a monorepo containing:
 | Package | Description | Status |
 |---------|-------------|--------|
 | [`vroute-cli`](./packages/vroute-cli) | npm CLI package with web dashboard | Active |
-| [`vroute-desktop`](./packages/vroute-desktop) | Electron desktop app | Coming Soon |
-
-## Quick Start
-
-### Installation (npm)
-
-```bash
-npm install -g vroute
-```
-
-### Setup
-
-```bash
-# Generate and trust local SSL certificates
-vroute setup
-
-# Start the daemon
-vroute start
-
-# Open the web dashboard
-vroute ui
-```
-
-### Add Your First Route
-
-```bash
-# Add a route mapping
-vroute add app.test 3000
-
-# Your app is now available at https://app.test
-```
-
-## CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `vroute start` | Start the background daemon |
-| `vroute stop` | Stop the background daemon |
-| `vroute add <domain> <port>` | Add a new local route |
-| `vroute remove <domain>` | Remove a local route |
-| `vroute list` | List all active routes |
-| `vroute status` | Check if daemon is running |
-| `vroute setup` | Generate and trust SSL certificates |
-| `vroute ui` | Open the web dashboard |
+| [`vroute-desktop`](./packages/vroute-desktop) | Windows/Mac desktop app | Coming Soon |
 
 ## Project Structure
 
 ```
 vroute/
 ├── packages/
-│   ├── vroute-cli/          # npm CLI package
+│   ├── vroute-cli/              # npm CLI package
 │   │   ├── src/
-│   │   │   ├── cli/         # Command-line interface
-│   │   │   ├── daemon/      # Background server
-│   │   │   ├── dashboard/   # Web UI (Vite + React)
-│   │   │   ├── dns/         # Hosts file management
-│   │   │   ├── ssl/         # Certificate generation
-│   │   │   └── state/       # Configuration persistence
-│   │   ├── bin/             # CLI entry points
-│   │   └── package.json
-│   └── vroute-desktop/      # Desktop app (coming soon)
+│   │   │   ├── cli/             # Command-line interface (Commander.js)
+│   │   │   ├── daemon/          # Express server + reverse proxy
+│   │   │   ├── dashboard/       # React + Tailwind CSS web UI
+│   │   │   ├── dns/             # Cross-platform hosts file management
+│   │   │   ├── ssl/             # Certificate generation (node-forge)
+│   │   │   └── state/           # JSON config persistence (~/.vroute/)
+│   │   └── bin/                 # CLI entry points
+│   └── vroute-desktop/          # Desktop app (coming soon)
 ├── README.md
 ├── LICENSE
 └── CONTRIBUTING.md
 ```
 
+## Tech Stack
+
+- **CLI** — Commander.js
+- **Daemon** — Express 5, http-proxy, Socket.IO
+- **Dashboard** — React 19, Tailwind CSS, Vite
+- **SSL** — node-forge (local CA generation)
+- **DNS** — Cross-platform hosts file management
+
+## Platform Support
+
+| Platform | DNS Modification | SSL Trust |
+|----------|------------------|-----------|
+| Linux | `/etc/hosts` via sudo | `update-ca-certificates` |
+| macOS | `/etc/hosts` via osascript | Keychain via `security add-trusted-cert` |
+| Windows | PowerShell `Start-Process -Verb RunAs` | `certutil -addstore` |
+
 ## Development
 
-### Prerequisites
-
-- Node.js 18+
-- npm or yarn
-
-### Setup
-
 ```bash
-# Clone the repository
+# Clone
 git clone https://github.com/nowshadabir/vroute.git
 cd vroute
 
 # Install dependencies
 npm install
 
-# Build the CLI package
+# Build CLI
 npm run build:cli
 
-# Run in development mode
-npm run dev:cli
+# Build dashboard
+cd packages/vroute-cli/src/dashboard && npm run build
 ```
-
-### Working on CLI Package
-
-```bash
-cd packages/vroute-cli
-
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Test locally
-npm link
-vroute --version
-```
-
-## Platform Support
-
-| Platform | DNS Modification | SSL Trust |
-|----------|------------------|-----------|
-| Linux | `/etc/hosts` via sudo | `/usr/local/share/ca-certificates/` |
-| macOS | `/etc/hosts` via osascript | Keychain via `security add-trusted-cert` |
-| Windows | PowerShell `Start-Process -Verb RunAs` | `certutil -addstore` |
 
 ## Roadmap
 
 - [x] CLI tool with web dashboard
 - [x] Cross-platform DNS management
 - [x] Auto-SSL certificate generation
+- [x] Tailwind CSS light theme dashboard
 - [ ] Desktop app (Windows .exe)
 - [ ] Desktop app (macOS .app)
 - [ ] System tray integration
@@ -174,8 +159,8 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 
 ## License
 
-This project is licensed under the ISC License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the ISC License — see the [LICENSE](LICENSE) file for details.
 
 ---
 
-Made with ❤️ by [Kazi Nowshad Abir](https://github.com/nowshadabir) | [VivaGo Technologies](https://github.com/vivagotechnologies)
+Built by [Kazi Nowshad Abir](https://github.com/nowshadabir) | [VivaGo Technologies](https://github.com/vivagotechnologies)
