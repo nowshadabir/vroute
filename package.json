@@ -9,7 +9,7 @@
   "scripts": {
     "build:cli": "npm run build --workspace=packages/vroute-cli",
     "dev:cli": "npm run dev --workspace=packages/vroute-cli",
-    "publish:cli": "npm run publish --workspace=packages/vroute-cli"
+    "publish:cli": "npm publish --workspace=packages/vroute-cli"
   },
   "repository": {
     "type": "git",
