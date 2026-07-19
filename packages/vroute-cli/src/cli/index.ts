@@ -3,6 +3,27 @@ import { spawn, exec } from 'child_process';
 import path from 'path';
 import { readConfig, updateConfig } from '../state/config';
 import sudo from 'sudo-prompt';
+import fs from 'fs';
+
+function spawnDaemon() {
+  let daemonPath = path.join(__dirname, '..', 'daemon', 'server.js');
+  let execCmd = process.execPath;
+  let execArgs = [daemonPath];
+
+  if (!fs.existsSync(daemonPath)) {
+    const tsPath = path.join(__dirname, '..', 'daemon', 'server.ts');
+    if (fs.existsSync(tsPath)) {
+      daemonPath = tsPath;
+      execCmd = 'npx';
+      execArgs = ['tsx', tsPath];
+    }
+  }
+
+  return spawn(execCmd, execArgs, {
+    detached: true,
+    stdio: 'ignore'
+  });
+}
 
 const program = new Command();
 
@@ -32,16 +53,10 @@ program
       return;
     }
 
-    // Resolve the path to the compiled daemon server
-    const daemonPath = path.join(__dirname, '..', 'daemon', 'server.js');
-
     console.log('Starting vroute daemon...');
 
     // Spawn the daemon process in detached mode
-    const child = spawn(process.execPath, [daemonPath], {
-      detached: true,
-      stdio: 'ignore'
-    });
+    const child = spawnDaemon();
 
     // Write PID immediately so stop/status work even if daemon hasn't started yet
     updateConfig((c) => { c.daemonPid = child.pid!; });
@@ -173,11 +188,7 @@ program
     const config = readConfig();
     if (!isDaemonRunning(config.daemonPid)) {
       console.log('⚠️  Daemon is not running. Starting it now...');
-      const daemonPath = path.join(__dirname, '..', 'daemon', 'server.js');
-      const child = spawn(process.execPath, [daemonPath], {
-        detached: true,
-        stdio: 'ignore'
-      });
+      const child = spawnDaemon();
       child.unref();
       // Wait for daemon to start before opening browser
       setTimeout(() => openBrowser(), 2000);

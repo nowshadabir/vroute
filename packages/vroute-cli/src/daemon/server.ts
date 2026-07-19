@@ -162,11 +162,21 @@ app.use((req, res) => {
 export function startDaemon() {
   const server = app.listen(PORT, () => {
     console.log(`vroute daemon API is running on port ${PORT}`);
-    
+
     // Write PID to state
     updateConfig((config) => {
       config.daemonPid = process.pid;
     });
+  });
+
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`❌ vroute daemon API Error: Port ${PORT} is already in use.`);
+      process.exit(1);
+    } else {
+      console.error(`❌ vroute daemon API Error:`, err.message);
+      process.exit(1);
+    }
   });
 
   // Attach WebSocket Server
@@ -186,25 +196,39 @@ export function startDaemon() {
   // Try standard ports (80/443), fall back to alt ports (8080/8443)
   let httpFallbackDone = false;
   proxyServer.on('error', (err: any) => {
-    if ((err.code === 'EACCES' || err.code === 'EADDRINUSE') && !httpFallbackDone) {
-      httpFallbackDone = true;
-      PROXY_PORT = 8080;
-      console.log(`Port 80 unavailable, falling back to port ${PROXY_PORT}`);
-      proxyServer.listen(PROXY_PORT, '127.0.0.1', () => {
-        console.log(`vroute proxy server listening on 127.0.0.1:${PROXY_PORT}`);
-      });
+    if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+      if (!httpFallbackDone) {
+        httpFallbackDone = true;
+        PROXY_PORT = 8080;
+        console.log(`Port 80 unavailable, falling back to port ${PROXY_PORT}`);
+        proxyServer.listen(PROXY_PORT, '127.0.0.1', () => {
+          console.log(`vroute proxy server listening on 127.0.0.1:${PROXY_PORT}`);
+        });
+      } else {
+        console.error(`❌ Proxy Server Error: Cannot bind to port ${PROXY_PORT}.`);
+        process.exit(1);
+      }
+    } else {
+      console.error(`❌ Proxy Server Error:`, err.message);
     }
   });
 
   let httpsFallbackDone = false;
   httpsProxyServer.on('error', (err: any) => {
-    if ((err.code === 'EACCES' || err.code === 'EADDRINUSE') && !httpsFallbackDone) {
-      httpsFallbackDone = true;
-      HTTPS_PORT = 8443;
-      console.log(`Port 443 unavailable, falling back to port ${HTTPS_PORT}`);
-      httpsProxyServer.listen(HTTPS_PORT, '127.0.0.1', () => {
-        console.log(`vroute HTTPS proxy server listening on 127.0.0.1:${HTTPS_PORT}`);
-      });
+    if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+      if (!httpsFallbackDone) {
+        httpsFallbackDone = true;
+        HTTPS_PORT = 8443;
+        console.log(`Port 443 unavailable, falling back to port ${HTTPS_PORT}`);
+        httpsProxyServer.listen(HTTPS_PORT, '127.0.0.1', () => {
+          console.log(`vroute HTTPS proxy server listening on 127.0.0.1:${HTTPS_PORT}`);
+        });
+      } else {
+        console.error(`❌ HTTPS Proxy Server Error: Cannot bind to port ${HTTPS_PORT}.`);
+        process.exit(1);
+      }
+    } else {
+      console.error(`❌ HTTPS Proxy Server Error:`, err.message);
     }
   });
 
@@ -230,13 +254,19 @@ export function startDaemon() {
       console.log('Proxy server closed');
     });
 
-    dnsServer.close();
-    console.log('DNS server closed');
+    try {
+      dnsServer.close();
+      console.log('DNS server closed');
+    } catch (e) {
+      console.log('DNS server was not running');
+    }
 
     server.close(() => {
       console.log('API server closed');
       updateConfig((config) => {
-        delete config.daemonPid;
+        if (config.daemonPid === process.pid) {
+          delete config.daemonPid;
+        }
       });
       process.exit(0);
     });
