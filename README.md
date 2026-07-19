@@ -8,7 +8,7 @@
 
 **vroute** eliminates the friction of local web development by automatically handling DNS mapping, SSL certificate generation, OS trust injection, and traffic proxying — all from a clean web dashboard. It acts as your local "infrastructure in a box", helping you bypass CORS, simulate network latency, block analytics, and map custom domains securely to your local dev servers.
 
-![vroute dashboard](https://github.com/nowshadabir/vroute/raw/main/packages/vroute-cli/dashboard.png)
+![vroute dashboard](https://github.com/nowshadabir/vroute/raw/main/dashboard.png)
 
 ---
 
