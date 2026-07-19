@@ -48,6 +48,7 @@
   ],
   "dependencies": {
     "commander": "^15.0.0",
+    "dns2": "^3.0.0",
     "express": "^5.2.1",
     "http-proxy": "^1.18.1",
     "node-forge": "^1.4.0",

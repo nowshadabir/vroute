@@ -1,0 +1,102 @@
+================================================================================
+FEATURE SPECIFICATION: ADVANCED PROXY MIDDLEWARES
+================================================================================
+Project: vroute (Zero-Config Local DNS & SSL Router)
+Features: 
+  - VR-002: Analytics & Webhook Shield (No-Pollution Mode)
+  - VR-003: UI Chaos Monkey (Fault & Latency Injection)
+
+================================================================================
+FEATURE VR-002: ANALYTICS & WEBHOOK SHIELD (NO-POLLUTION MODE)
+================================================================================
+
+1. THE PROBLEM CONTEXT
+--------------------------------------------------------------------------------
+During local frontend development, applications frequently load third-party 
+tracking scripts (Google Analytics, Meta Pixel, Mixpanel) or trigger external 
+webhooks. If not carefully disabled in the `.env` file, local navigation clicks 
+and test events are sent to live production dashboards, polluting the client's 
+actual data. Manually blocking these in the browser or code is tedious and 
+prone to human error.
+
+2. FEATURE OBJECTIVE
+--------------------------------------------------------------------------------
+Implement a proxy-level firewall ("Shield") that intercepts outbound tracking 
+and webhook requests. Instead of simply blocking them (which causes ugly, red 
+CORS/Connection errors in the browser console that can break frontend execution), 
+vroute will return a seamless dummy `200 OK` or `204 No Content` response.
+
+3. ARCHITECTURAL WORKFLOW (FOR AI IMPLEMENTATION)
+--------------------------------------------------------------------------------
+A. The Blocklist Engine:
+   - Create a default, maintainable JSON list of common tracking domains 
+     (e.g., `*.google-analytics.com`, `*.mixpanel.com`, `*.facebook.net`).
+   - Allow developers to add custom domains or endpoints (e.g., 
+     `/api/v1/stripe/webhook`) via the dashboard.
+
+B. Proxy Interception Layer:
+   - Inject a middleware function into the core HTTP/HTTPS proxy before the 
+     request is forwarded to the upstream local server.
+   - For every incoming request, check the `Host` or path against the blocklist.
+   - If a match is found:
+       1. DO NOT forward the request.
+       2. Immediately return a mock HTTP 200/204 response.
+       3. Inject headers: `Access-Control-Allow-Origin: *` to prevent CORS 
+          errors in the browser.
+       4. Log the blocked request in the UI with a "Shielded" badge.
+
+C. Dashboard UI:
+   - Add a global "Shield" toggle at the top of the dashboard.
+   - Add a settings panel to manage custom blocked endpoints.
+
+
+================================================================================
+FEATURE VR-003: UI CHAOS MONKEY (FAULT & LATENCY INJECTION)
+================================================================================
+
+1. THE PROBLEM CONTEXT
+--------------------------------------------------------------------------------
+Testing how a Next.js or React frontend handles API timeouts, server crashes, 
+or slow 3G networks is difficult. Developers usually have to temporarily write 
+`setTimeout()` or `throw new Error()` into their backend code to see the UI's 
+loading skeletons or Error Boundaries. This requires constant code modification 
+and risks accidentally pushing test-crashing code to production.
+
+2. FEATURE OBJECTIVE
+--------------------------------------------------------------------------------
+Allow developers to define failure and latency rules directly in the vroute 
+dashboard. The proxy will dynamically sabotage the network traffic based on 
+these rules, allowing the developer to test frontend resilience while keeping 
+both frontend and backend codebases 100% clean.
+
+3. ARCHITECTURAL WORKFLOW (FOR AI IMPLEMENTATION)
+--------------------------------------------------------------------------------
+A. The Rule State Manager:
+   - Update the configuration state (`~/.vroute/config.json`) to accept a 
+     `chaos_rules` array for each route.
+   - A rule object should contain:
+       - Target Path (e.g., `/api/checkout`, or `*` for all).
+       - Method (e.g., `POST`, `GET`).
+       - Latency (e.g., `2000` ms delay).
+       - Failure Rate (e.g., `50`% chance to fail).
+       - Error Status (e.g., `502`, `500`, `403`).
+
+B. Proxy Interception Layer:
+   - Inject a Chaos Middleware into the HTTP/HTTPS proxy engine.
+   - When a request matches a configured Chaos Rule:
+       1. Latency Check: If latency is defined, use a non-blocking delay 
+          (e.g., `await new Promise(r => setTimeout(r, ms))`) before processing.
+       2. Failure Check: Generate a random number. If it falls within the 
+          Failure Rate percentage, immediately drop the request and return 
+          the defined Error Status (e.g., 502 Bad Gateway) with a dummy JSON 
+          error payload.
+       3. If it survives the Failure Check, forward it to the actual backend.
+   - Ensure the UI Traffic Log clearly marks the request as "Chaos Triggered".
+
+C. Dashboard UI:
+   - Add a "Chaos Mode" tab to the route management modal.
+   - Form inputs for: Endpoint Path, Delay (ms), Error Status Code, and 
+     Probability (%).
+   - A master toggle to instantly enable/disable Chaos rules without deleting 
+     the configuration.
+================================================================================

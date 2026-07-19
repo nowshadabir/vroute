@@ -25,10 +25,14 @@ Currently, this involves:
 ## Features
 
 - **Instant Local Domains** — Map custom domains (e.g., `app.test`) to local ports
-- **Auto-SSL** — Generate trusted SSL certificates automatically
+- **Wildcard Subdomains** — Map `*.app.test` for multi-tenant applications easily
+- **Built-in Local DNS Server** — Automatically intercepts traffic without touching `/etc/hosts` (for wildcard and shielded domains)
+- **Auto-SSL** — Generate trusted SSL certificates automatically on the fly
 - **CORS Bypass** — Inject headers to prevent cross-origin errors
+- **Analytics & Webhook Shield** — Silently block third-party trackers with dummy 200 OK responses to keep data clean
+- **UI Chaos Monkey** — Inject customizable latency and HTTP faults to test frontend resilience
 - **Cross-Platform** — Works on Linux, macOS, and Windows
-- **Web Dashboard** — Clean, minimal UI to manage routes and monitor traffic
+- **Web Dashboard** — Clean, minimal UI to manage routes, settings, and monitor traffic
 - **Persistent Routes** — Routes survive reboots
 
 ## Quick Start
@@ -69,10 +73,21 @@ Visit `https://myapp.test` in your browser — it's proxied to `localhost:3000` 
 
 The built-in web dashboard provides:
 - **Route management** — Add, view, and remove routes with SSL/CORS toggles
-- **Real-time traffic** — Monitor proxied requests with method, status, host, and latency
+- **Analytics Shield** — Toggle and manage your tracking/webhook blocklist to avoid polluting production data.
+- **Chaos Monkey** — Add granular fault and latency injection rules per route to test your frontend.
+- **Real-time traffic** — Monitor proxied requests with method, status, host, latency, and interception badges.
 - **Connection status** — Live WebSocket connection indicator
 
 Run `vroute ui` to open it at `http://localhost:9999`.
+
+## Advanced Features
+
+### 🛡️ Analytics & Webhook Shield (No-Pollution Mode)
+During frontend development, firing requests to Mixpanel, Google Analytics, or Stripe webhooks can pollute your actual live dashboards. With the Shield enabled, vroute intercepts outgoing tracking scripts via its Local DNS and instantly returns a mock `200 OK` response with CORS bypass headers. This prevents red console errors in your browser while keeping your live data 100% clean.
+*(Note: Intercepting external domains requires the daemon to run via `sudo` to bind to port 53.)*
+
+### ⚡ UI Chaos Monkey (Fault & Latency Injection)
+Testing frontend loading skeletons or API timeout handlers usually requires temporarily writing `setTimeout()` or `throw new Error()` in your backend. With Chaos Monkey, you can apply rules directly in the vroute dashboard. Set a `1000ms` latency and a `50%` failure rate on `/api/checkout`, and vroute will dynamically inject faults into the network traffic, allowing you to test frontend resilience while keeping both codebases pristine.
 
 ## Packages
 
@@ -109,7 +124,7 @@ vroute/
 - **Daemon** — Express 5, http-proxy, Socket.IO
 - **Dashboard** — React 19, Tailwind CSS, Vite
 - **SSL** — node-forge (local CA generation)
-- **DNS** — Cross-platform hosts file management
+- **DNS** — Built-in UDP DNS Server (dns2) + Cross-platform hosts file management
 
 ## Platform Support
 
@@ -139,8 +154,10 @@ cd packages/vroute-cli/src/dashboard && npm run build
 ## Roadmap
 
 - [x] CLI tool with web dashboard
+- [x] Built-in DNS Server (UDP port 53)
 - [x] Cross-platform DNS management
 - [x] Auto-SSL certificate generation
+- [x] Advanced Proxies: Analytics Shield & Chaos Monkey
 - [x] Tailwind CSS light theme dashboard
 - [ ] Desktop app (Windows .exe)
 - [ ] Desktop app (macOS .app)

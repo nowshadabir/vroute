@@ -2,6 +2,7 @@ import express from 'express';
 import { updateConfig, readConfig } from '../state/config';
 import { proxyServer, proxyEvents } from './proxy';
 import { httpsProxyServer } from './https';
+import { startDnsServer } from '../dns/server';
 import { Server } from 'socket.io';
 import path from 'path';
 import sudo from 'sudo-prompt';
@@ -19,11 +20,6 @@ const packageRoot = path.resolve(__dirname, '..', '..');
 const dashboardPath = path.join(packageRoot, 'src', 'dashboard', 'dist');
 app.use(express.static(dashboardPath));
 
-// Fallback: serve index.html for SPA routing (Express 5 syntax)
-app.get('/{*path}', (req, res) => {
-  if (req.path.startsWith('/api/')) return;
-  res.sendFile(path.join(dashboardPath, 'index.html'));
-});
 
 app.use(express.json());
 
@@ -37,7 +33,8 @@ app.get('/api/config', (req, res) => {
 
 app.get('/api/ports', (req, res) => {
   try {
-    const output = execSync('ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null', { encoding: 'utf-8' });
+    const cmd = '/usr/bin/ss -tlnp 2>/dev/null || /usr/sbin/ss -tlnp 2>/dev/null || /bin/ss -tlnp 2>/dev/null || ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null';
+    const output = execSync(cmd, { encoding: 'utf-8' });
     const lines = output.split('\n').slice(1); // skip header
     const ports = lines
       .filter(line => line.trim())
@@ -129,6 +126,39 @@ app.delete('/api/routes/:domain', (req, res) => {
   });
 });
 
+app.post('/api/shield', (req, res) => {
+  const { enabled, rules } = req.body;
+  
+  updateConfig(config => {
+    if (enabled !== undefined) config.shieldEnabled = !!enabled;
+    if (Array.isArray(rules)) config.shieldRules = rules;
+  });
+
+  const newConfig = readConfig();
+  io?.emit('config', newConfig);
+  res.json({ success: true, config: newConfig });
+});
+
+app.post('/api/routes/:domain/chaos', (req, res) => {
+  const domain = req.params.domain;
+  const { enabled, rules } = req.body;
+
+  updateConfig(config => {
+    if (!config.routes[domain]) return;
+    if (enabled !== undefined) config.routes[domain].chaosEnabled = !!enabled;
+    if (Array.isArray(rules)) config.routes[domain].chaosRules = rules;
+  });
+
+  const newConfig = readConfig();
+  io?.emit('config', newConfig);
+  res.json({ success: true, config: newConfig });
+});
+
+// Fallback: serve index.html for SPA routing
+app.use((req, res) => {
+  res.sendFile(path.join(dashboardPath, 'index.html'));
+});
+
 export function startDaemon() {
   const server = app.listen(PORT, () => {
     console.log(`vroute daemon API is running on port ${PORT}`);
@@ -154,8 +184,10 @@ export function startDaemon() {
   });
 
   // Try standard ports (80/443), fall back to alt ports (8080/8443)
+  let httpFallbackDone = false;
   proxyServer.on('error', (err: any) => {
-    if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+    if ((err.code === 'EACCES' || err.code === 'EADDRINUSE') && !httpFallbackDone) {
+      httpFallbackDone = true;
       PROXY_PORT = 8080;
       console.log(`Port 80 unavailable, falling back to port ${PROXY_PORT}`);
       proxyServer.listen(PROXY_PORT, '127.0.0.1', () => {
@@ -164,8 +196,10 @@ export function startDaemon() {
     }
   });
 
+  let httpsFallbackDone = false;
   httpsProxyServer.on('error', (err: any) => {
-    if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+    if ((err.code === 'EACCES' || err.code === 'EADDRINUSE') && !httpsFallbackDone) {
+      httpsFallbackDone = true;
       HTTPS_PORT = 8443;
       console.log(`Port 443 unavailable, falling back to port ${HTTPS_PORT}`);
       httpsProxyServer.listen(HTTPS_PORT, '127.0.0.1', () => {
@@ -182,6 +216,8 @@ export function startDaemon() {
     console.log(`vroute HTTPS proxy server listening on 127.0.0.1:${HTTPS_PORT}`);
   });
 
+  const dnsServer = startDnsServer();
+
   // Handle graceful shutdown
   const shutdown = () => {
     console.log('Shutting down vroute daemon...');
@@ -193,6 +229,9 @@ export function startDaemon() {
     proxyServer.close(() => {
       console.log('Proxy server closed');
     });
+
+    dnsServer.close();
+    console.log('DNS server closed');
 
     server.close(() => {
       console.log('API server closed');

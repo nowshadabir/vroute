@@ -1,7 +1,7 @@
 import https from 'https';
 import tls from 'tls';
 import { generateDomainCert } from '../ssl/certs';
-import { proxyServer, resolveRoute } from './proxy';
+import { proxy, proxyServer, resolveRoute } from './proxy';
 import { readConfig } from '../state/config';
 
 const secureContexts = new Map<string, tls.SecureContext>();
@@ -46,5 +46,21 @@ export const httpsProxyServer = https.createServer({
 });
 
 httpsProxyServer.on('upgrade', (req, socket, head) => {
-  proxyServer.emit('upgrade', req, socket, head);
+  const hostHeader = req.headers.host;
+  if (!hostHeader) {
+    socket.destroy();
+    return;
+  }
+
+  const host = hostHeader.split(':')[0]!;
+  const config = readConfig();
+  const resolved = resolveRoute(host, config.routes);
+
+  if (resolved && resolved.config.port) {
+    const target = `http://127.0.0.1:${resolved.config.port}`;
+    delete req.headers.origin; // Bypass strict origin checks for WebSockets (e.g. Next.js HMR)
+    proxy.ws(req, socket, head, { target });
+  } else {
+    socket.destroy();
+  }
 });
